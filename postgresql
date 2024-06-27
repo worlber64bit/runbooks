@@ -1,0 +1,47 @@
+#cloud-config
+package_update: true
+package_upgrade: false
+packages:
+  - gnupg
+  - wget
+  - lsb-release
+  - software-properties-common
+
+users:
+  - default
+  - name: myuser
+    ssh-authorized-keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEArbFZT1GaU0Qx...
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    shell: /bin/bash
+    lock_passwd: false
+    passwd: $6$rounds=4096$ABCDEFGHIJKLMNOPQRSTUV$abcdefghijklmno...
+
+chpasswd:
+  list: |
+    myuser:password
+  expire: False
+
+ssh_pwauth: true
+
+network:
+  version: 2
+  ethernets:
+    eth0:
+      dhcp4: true
+
+runcmd:
+  - sudo apt-get update
+  - sudo apt-get install -y wget gnupg lsb-release software-properties-common
+  - wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+  - echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+  - sudo apt-get update
+  - sudo apt-get install -y postgresql-15 postgresql-client-15
+  - sudo systemctl stop ufw  # Stops Ubuntu firewall (if necessary)
+  - sudo systemctl disable ufw  # Disables Ubuntu firewall (if necessary)
+  - sudo systemctl stop apparmor  # Stops AppArmor service
+  - sudo systemctl disable apparmor  # Disables AppArmor service
+  - sudo systemctl start postgresql
+  - sudo systemctl enable postgresql
+
+final_message: "The system is finally up, after $UPTIME seconds"
