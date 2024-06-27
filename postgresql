@@ -1,47 +1,61 @@
-#cloud-config
-package_update: true
-package_upgrade: false
-packages:
-  - gnupg
-  - wget
-  - lsb-release
-  - software-properties-common
+---
+- name: Setup PostgreSQL on Ubuntu 24
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update apt repository cache
+      apt:
+        update_cache: yes
 
-users:
-  - default
-  - name: myuser
-    ssh-authorized-keys:
-      - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEArbFZT1GaU0Qx...
-    sudo: ['ALL=(ALL) NOPASSWD:ALL']
-    shell: /bin/bash
-    lock_passwd: false
-    passwd: $6$rounds=4096$ABCDEFGHIJKLMNOPQRSTUV$abcdefghijklmno...
+    - name: Install necessary packages
+      apt:
+        name: 
+          - wget
+          - gnupg
+          - lsb-release
+          - software-properties-common
+        state: present
 
-chpasswd:
-  list: |
-    myuser:password
-  expire: False
+    - name: Add PostgreSQL apt repository key
+      apt_key:
+        url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+        state: present
 
-ssh_pwauth: true
+    - name: Add PostgreSQL apt repository
+      apt_repository:
+        repo: "deb http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+        state: present
 
-network:
-  version: 2
-  ethernets:
-    eth0:
-      dhcp4: true
+    - name: Update apt repository cache after adding PostgreSQL repo
+      apt:
+        update_cache: yes
 
-runcmd:
-  - sudo apt-get update
-  - sudo apt-get install -y wget gnupg lsb-release software-properties-common
-  - wget -qO - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-  - echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-  - sudo apt-get update
-  - sudo apt-get install -y postgresql-15 postgresql-client-15
-  - sudo systemctl stop ufw  # Stops Ubuntu firewall (if necessary)
-  - sudo systemctl disable ufw  # Disables Ubuntu firewall (if necessary)
-  - sudo systemctl stop apparmor  # Stops AppArmor service
-  - sudo systemctl disable apparmor  # Disables AppArmor service
-  - sudo systemctl start postgresql
-  - sudo systemctl enable postgresql
+    - name: Install PostgreSQL 15 and client
+      apt:
+        name: 
+          - postgresql-15
+          - postgresql-client-15
+        state: present
 
-final_message: "The system is finally up, after $UPTIME seconds"
+    - name: Stop and disable UFW (if necessary)
+      systemd:
+        name: ufw
+        state: stopped
+        enabled: no
+      ignore_errors: yes
+
+    - name: Stop and disable AppArmor
+      systemd:
+        name: apparmor
+        state: stopped
+        enabled: no
+
+    - name: Ensure PostgreSQL is started and enabled
+      systemd:
+        name: postgresql
+        state: started
+        enabled: yes
+
+    - name: Print final message
+      debug:
+        msg: "The system is finally up, after {{ ansible_uptime_seconds }} seconds"
